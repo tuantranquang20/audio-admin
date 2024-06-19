@@ -4,18 +4,24 @@ import ECommerce from "@/components/Dashboard/E-commerce";
 import AuthLayout from "@/components/Layouts/AuthLayout";
 import Modal from "@/components/Modal/Modal";
 import TablePagination from "@/components/TablePagination/TablePagination";
-import TableThree from "@/components/Tables/TableThree";
+import Select from "react-select";
 import { useDebounce } from "@/hooks/useDebounce";
 import useSearchParamsCus from "@/hooks/useSearchParamsCus";
-import { getUsersApi } from "@/services/user.service";
-import Link from "next/link";
 import {
-  usePathname,
-  useRouter,
-  useParams,
-  useSearchParams,
-} from "next/navigation";
+  createUserApi,
+  deleteUserApi,
+  getUsersApi,
+} from "@/services/user.service";
+import { useFormik } from "formik";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Toastify from "toastify-js";
+
+const TYPE_MODAL = {
+  CREATE: "create",
+  EDIT: "edit",
+  CLOSE: "",
+};
 
 export default function User() {
   const searchParamsCus: any = useSearchParamsCus();
@@ -25,22 +31,18 @@ export default function User() {
   const [option, setOption] = useState<any>(searchParamsCus.paramsObj);
   const [users, setUsers] = useState<any>();
   const [userSelected, setUserSelected] = useState<any>();
-
+  const [isOpenModalDelete, setIsOpenModalDelete] = useState(false);
   const [isOpenModalDetail, setIsOpenModalDetail] = useState(false);
-  const [isAddProductModal, setIsAddProductModal] = useState(false);
+  const [isOpenModal, setIsOpenModal] = useState(TYPE_MODAL.CLOSE);
 
   const getListUser = async () => {
     try {
       const res = await getUsersApi(option);
-      setUsers({
-        data: [],
-        meta: {
-          page: 1,
-        },
-      });
+      console.log(res);
+      setUsers(res?.data);
       setOption({
         ...option,
-        page: res?.data.meta.page,
+        page: res?.page,
       });
     } catch (error) {
       console.log("getListUser error", error);
@@ -84,44 +86,57 @@ export default function User() {
     getListUser();
     console.log("option: ", option);
     console.log("pathname: ", pathname);
+    // console.log("searchParams: ", searchParams);
+    // console.log("params: ", params);
   }, []);
+
+  const handleDelete = async () => {
+    const result = await deleteUserApi(userSelected.id);
+    if (result?.statusCode === 200) {
+      Toastify({
+        text: "Delete successfully",
+        className: "info",
+        close: true,
+        gravity: "bottom",
+        position: "center",
+        style: {
+          background: "linear-gradient(to right, #00b09b, #96c93d)",
+        },
+      }).showToast();
+    }
+    getListUser();
+    setIsOpenModalDelete(false);
+  };
 
   return (
     <>
       <AuthLayout>
-        <button
-          onClick={() => setIsAddProductModal(true)}
-          className="inline-flex items-center justify-center gap-2.5 bg-primary px-10 py-4 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
-        >
-          <span>
+        <div className="rounded-sm border border-stroke bg-white px-5 pb-2.5 pt-6 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
+          <button
+            onClick={() => setIsOpenModal(TYPE_MODAL.CREATE)}
+            className="my-2 flex items-center gap-2 rounded bg-primary px-4.5 py-2 font-medium text-white hover:bg-opacity-80"
+          >
             <svg
               className="fill-current"
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
             >
               <path
-                d="M17.8125 16.6656H2.1875C1.69022 16.6656 1.21331 16.4681 0.861675 16.1164C0.510044 15.7648 0.3125 15.2879 0.3125 14.7906V5.20935C0.3125 4.71207 0.510044 4.23516 0.861675 3.88353C1.21331 3.53189 1.69022 3.33435 2.1875 3.33435H17.8125C18.3098 3.33435 18.7867 3.53189 19.1383 3.88353C19.49 4.23516 19.6875 4.71207 19.6875 5.20935V14.7906C19.6875 15.2879 19.49 15.7648 19.1383 16.1164C18.7867 16.4681 18.3098 16.6656 17.8125 16.6656ZM2.1875 4.58435C2.02174 4.58435 1.86277 4.6502 1.74556 4.76741C1.62835 4.88462 1.5625 5.04359 1.5625 5.20935V14.7906C1.5625 14.9564 1.62835 15.1153 1.74556 15.2325C1.86277 15.3498 2.02174 15.4156 2.1875 15.4156H17.8125C17.9783 15.4156 18.1372 15.3498 18.2544 15.2325C18.3717 15.1153 18.4375 14.9564 18.4375 14.7906V5.20935C18.4375 5.04359 18.3717 4.88462 18.2544 4.76741C18.1372 4.6502 17.9783 4.58435 17.8125 4.58435H2.1875Z"
+                d="M15 7H9V1C9 0.4 8.6 0 8 0C7.4 0 7 0.4 7 1V7H1C0.4 7 0 7.4 0 8C0 8.6 0.4 9 1 9H7V15C7 15.6 7.4 16 8 16C8.6 16 9 15.6 9 15V9H15C15.6 9 16 8.6 16 8C16 7.4 15.6 7 15 7Z"
                 fill=""
-              />
-              <path
-                d="M9.9996 10.6438C9.63227 10.6437 9.2721 10.5421 8.95898 10.35L0.887102 5.45001C0.744548 5.36381 0.642073 5.22452 0.602222 5.06277C0.58249 4.98268 0.578725 4.89948 0.591144 4.81794C0.603563 4.73639 0.631922 4.65809 0.674602 4.58751C0.717281 4.51692 0.773446 4.45543 0.839888 4.40655C0.906331 4.35767 0.981751 4.32236 1.06184 4.30263C1.22359 4.26277 1.39455 4.28881 1.5371 4.37501L9.60898 9.28126C9.7271 9.35331 9.8628 9.39143 10.0012 9.39143C10.1395 9.39143 10.2752 9.35331 10.3934 9.28126L18.4621 4.37501C18.5323 4.33233 18.6102 4.30389 18.6913 4.29131C18.7725 4.27873 18.8554 4.28227 18.9352 4.30171C19.015 4.32115 19.0901 4.35612 19.1564 4.40462C19.2227 4.45312 19.2788 4.51421 19.3215 4.58438C19.3642 4.65456 19.3926 4.73245 19.4052 4.81362C19.4177 4.89478 19.4142 4.97763 19.3948 5.05743C19.3753 5.13723 19.3404 5.21242 19.2919 5.27871C19.2434 5.34499 19.1823 5.40108 19.1121 5.44376L11.0402 10.35C10.7271 10.5421 10.3669 10.6437 9.9996 10.6438Z"
-                fill=""
-              />
+              ></path>
             </svg>
-          </span>
-          Add user
-        </button>
-
-        <div className="rounded-sm border border-stroke bg-white px-5 pb-2.5 pt-6 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
+            Add user
+          </button>
           <div className="max-w-full overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
                 <tr className="bg-gray-2 text-left dark:bg-meta-4">
                   <th className="min-w-[220px] px-4 py-4 font-medium text-black dark:text-white xl:pl-11">
-                    Name
+                    Full Name
                   </th>
                   <th className="min-w-[150px] px-4 py-4 font-medium text-black dark:text-white">
                     Email
@@ -138,11 +153,11 @@ export default function User() {
                 </tr>
               </thead>
               <tbody>
-                {users?.data.map((user: any, key: any) => (
+                {users?.items?.map((user: any, key: any) => (
                   <tr key={key}>
                     <td className="border-b border-[#eee] px-4 py-5 pl-9 dark:border-strokedark xl:pl-11">
                       <h5 className="font-medium text-black dark:text-white">
-                        {user.name}
+                        {user.fullName}
                       </h5>
                       {/* <p className="text-sm">${packageItem.price}</p> */}
                     </td>
@@ -183,7 +198,13 @@ export default function User() {
                             />
                           </svg>
                         </button>
-                        <button className="hover:text-primary">
+                        <button
+                          onClick={() => {
+                            setUserSelected(user);
+                            setIsOpenModalDelete(true);
+                          }}
+                          className="hover:text-primary"
+                        >
                           <svg
                             className="fill-current"
                             width="18"
@@ -210,25 +231,6 @@ export default function User() {
                             />
                           </svg>
                         </button>
-                        <button className="hover:text-primary">
-                          <svg
-                            className="fill-current"
-                            width="18"
-                            height="18"
-                            viewBox="0 0 18 18"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M16.8754 11.6719C16.5379 11.6719 16.2285 11.9531 16.2285 12.3187V14.8219C16.2285 15.075 16.0316 15.2719 15.7785 15.2719H2.22227C1.96914 15.2719 1.77227 15.075 1.77227 14.8219V12.3187C1.77227 11.9812 1.49102 11.6719 1.12539 11.6719C0.759766 11.6719 0.478516 11.9531 0.478516 12.3187V14.8219C0.478516 15.7781 1.23789 16.5375 2.19414 16.5375H15.7785C16.7348 16.5375 17.4941 15.7781 17.4941 14.8219V12.3187C17.5223 11.9531 17.2129 11.6719 16.8754 11.6719Z"
-                              fill=""
-                            />
-                            <path
-                              d="M8.55074 12.3469C8.66324 12.4594 8.83199 12.5156 9.00074 12.5156C9.16949 12.5156 9.31012 12.4594 9.45074 12.3469L13.4726 8.43752C13.7257 8.1844 13.7257 7.79065 13.5007 7.53752C13.2476 7.2844 12.8539 7.2844 12.6007 7.5094L9.64762 10.4063V2.1094C9.64762 1.7719 9.36637 1.46252 9.00074 1.46252C8.66324 1.46252 8.35387 1.74377 8.35387 2.1094V10.4063L5.40074 7.53752C5.14762 7.2844 4.75387 7.31252 4.50074 7.53752C4.24762 7.79065 4.27574 8.1844 4.50074 8.43752L8.55074 12.3469Z"
-                              fill=""
-                            />
-                          </svg>
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -236,6 +238,11 @@ export default function User() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            total={Math.ceil(users?.totalItems / 10 || 1)}
+            currentPage={option?.page}
+            setCurrentPage={handleChangePage}
+          />
         </div>
       </AuthLayout>
       <Modal
@@ -252,13 +259,13 @@ export default function User() {
           <div className="flex flex-col gap-5.5 p-6.5">
             <div>
               <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                User Name
+                Full Name
               </label>
               <input
                 type="text"
                 disabled
                 placeholder="Default Input"
-                value={userSelected?.name}
+                value={userSelected?.fullName}
                 className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
               />
             </div>
@@ -279,40 +286,169 @@ export default function User() {
         </div>
       </Modal>
       <Modal
-        isOpen={isAddProductModal}
-        onClose={() => setIsAddProductModal(false)}
-        title={"User Detail"}
+        isOpen={isOpenModal == TYPE_MODAL.CREATE}
+        onClose={() => setIsOpenModal("")}
+        title={"Create category"}
       >
-        <div className="rounded-sm border border-stroke bg-white dark:border-strokedark dark:bg-boxdark">
-          <div className="flex flex-col gap-5.5 p-6.5">
-            <div>
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                User Name
-              </label>
-              <input
-                type="text"
-                disabled
-                placeholder="Default Input"
-                value={userSelected?.name}
-                className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-              />
-            </div>
-
-            <div>
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Email
-              </label>
-              <input
-                type="text"
-                disabled
-                placeholder="Active Input"
-                value={userSelected?.email}
-                className="w-full rounded-lg border-[1.5px] border-primary bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:bg-form-input dark:text-white"
-              />
-            </div>
-          </div>
+        <FormCreateUser
+          onHandleSuccess={() => {
+            setIsOpenModal(TYPE_MODAL.CLOSE);
+            getListUser();
+          }}
+        />
+      </Modal>
+      <Modal
+        isOpen={isOpenModalDelete}
+        onClose={() => setIsOpenModalDelete(false)}
+        title={"Confirm delete"}
+      >
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={() => handleDelete()}
+            className="inline-flex w-24 items-center justify-center gap-2.5 rounded-md bg-primary px-10 py-4 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+          >
+            OK
+          </button>
+          <button
+            onClick={() => setIsOpenModalDelete(false)}
+            className="bg-red-500 inline-flex w-24 items-center justify-center gap-2.5 rounded-md bg-meta-3 px-10 py-4 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+          >
+            Cancel
+          </button>
         </div>
       </Modal>
     </>
   );
 }
+
+const FormCreateUser = ({ onHandleSuccess }: any) => {
+  const onSubmit = async () => {
+    try {
+      const result = await createUserApi({
+        ...values,
+        role: values.role.value,
+      });
+
+      if (result?.statusCode === 200) {
+        Toastify({
+          text: "Create successfully",
+          className: "info",
+          close: true,
+          gravity: "bottom",
+          position: "center",
+          style: {
+            background: "linear-gradient(to right, #00b09b, #96c93d)",
+          },
+        }).showToast();
+        onHandleSuccess();
+      }
+    } catch (error) {
+      console.log("handleLogin: ", error);
+    }
+  };
+
+  const { handleSubmit, errors, values, handleBlur, handleChange }: any =
+    useFormik({
+      initialValues: {
+        fullName: "",
+        email: "",
+        role: "",
+        password: "",
+      },
+      onSubmit,
+      enableReinitialize: true,
+    });
+
+  return (
+    <div>
+      <form onSubmit={handleSubmit}>
+        <div className="max-h-[55vh] overflow-auto rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+          <div className="p-6.5">
+            <div className="mb-4.5 flex flex-col gap-6 xl:flex-row">
+              <div className="w-full xl:w-1/2">
+                <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                  Full Name <span className="text-meta-1">*</span>
+                </label>
+                <input
+                  value={values.fullName}
+                  name="fullName"
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  type="text"
+                  placeholder="Enter full name"
+                  className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                />
+              </div>
+
+              <div className="w-full xl:w-1/2">
+                <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                  email <span className="text-meta-1">*</span>
+                </label>
+                <input
+                  inputMode="email"
+                  value={values.email}
+                  name="email"
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  type="text"
+                  placeholder="Enter email"
+                  className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                />
+              </div>
+            </div>
+            <div className="w-full">
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Password <span className="text-meta-1">*</span>
+              </label>
+              <input
+                security="true"
+                value={values.password}
+                name="password"
+                onChange={handleChange}
+                onBlur={handleBlur}
+                type="password"
+                placeholder="Enter password"
+                className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div className="mb-4.5">
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Role <span className="text-meta-1">*</span>
+              </label>
+              <Select
+                name="role"
+                isClearable
+                options={[
+                  {
+                    label: "Admin",
+                    value: "admin",
+                  },
+                  {
+                    label: "User",
+                    value: "user",
+                  },
+                ]}
+                value={values.role}
+                onChange={(selectedOption: any) => {
+                  handleChange({
+                    target: { name: "role", value: selectedOption },
+                  });
+                }}
+                noOptionsMessage={() => "No options"}
+                classNames={{
+                  control: () =>
+                    "w-full rounded border-[1.5px] border-stroke bg-transparent px-3 py-1 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary",
+                  valueContainer: () => "",
+                }}
+                onBlur={handleBlur}
+              />
+            </div>
+          </div>
+        </div>
+        <button className="mt-5 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90">
+          Submit
+        </button>
+      </form>
+    </div>
+  );
+};

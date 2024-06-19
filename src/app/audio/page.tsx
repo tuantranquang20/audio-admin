@@ -1,11 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AuthLayout from "@/components/Layouts/AuthLayout";
 import Modal from "@/components/Modal/Modal";
 
 import { useFormik } from "formik";
 import Select from "react-select";
+import TablePagination from "@/components/TablePagination/TablePagination";
+import useSearchParamsCus from "@/hooks/useSearchParamsCus";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  createAudioApi,
+  deleteAudioApi,
+  getAudioApi,
+} from "@/services/audio.service";
+import { useDebounce } from "@/hooks/useDebounce";
+import Toastify from "toastify-js";
+import { getAllCategoryApi } from "@/services/category.service";
 
 const TYPE_MODAL = {
   CREATE: "create",
@@ -14,10 +25,49 @@ const TYPE_MODAL = {
 };
 
 export default function Audio() {
-  const [audio, setAudio] = useState<any>();
+  const searchParamsCus: any = useSearchParamsCus();
+  const pathname = usePathname();
+  const { replace } = useRouter();
 
+  const [audio, setAudio] = useState<any>();
+  const [categories, setCategories] = useState<any>();
   const [isOpenModal, setIsOpenModal] = useState(TYPE_MODAL.CLOSE);
-  const [userSelected, setUserSelected] = useState<any>();
+  const [isOpenModalDelete, setIsOpenModalDelete] = useState(false);
+  const [option, setOption] = useState<any>(searchParamsCus.paramsObj);
+
+  const [isOpenModalDetail, setIsOpenModalDetail] = useState(false);
+
+  const [audioSelected, setAudioSelected] = useState<any>();
+
+  const getListAudio = async () => {
+    try {
+      const res = await getAudioApi(option);
+      console.log(res);
+      setAudio(res?.data);
+      setOption({
+        ...option,
+        page: res?.page,
+      });
+    } catch (error) {
+      console.log("getListAudio error", error);
+    }
+  };
+
+  const handleSearch = useDebounce((term: string) => {
+    const params = new URLSearchParams(searchParamsCus.searchParams);
+    if (option) {
+      for (let key in option) {
+        params.set(key, option[key]);
+      }
+    }
+    replace(`${pathname}?${params.toString()}`);
+    getListAudio();
+  }, 100);
+
+  const handleChangePage = (page: any) => {
+    setOption({ ...option, page });
+    handleSearch();
+  };
 
   const formatDate = (date: any) => {
     return new Date(date)
@@ -31,10 +81,51 @@ export default function Audio() {
       .join(" ");
   };
 
-  const handleShowDetail = (user: any) => {
-    setUserSelected(user);
-    setIsOpenModal(TYPE_MODAL.CLOSE);
+  const handleShowDetail = (audio: any) => {
+    setAudioSelected(audio);
+    setIsOpenModalDetail(true);
   };
+
+  const handleDelete = async () => {
+    const result = await deleteAudioApi(audioSelected.id);
+    console.log("result", result);
+    if (result?.statusCode === 200) {
+      Toastify({
+        text: "Delete successfully",
+        className: "info",
+        close: true,
+        gravity: "bottom",
+        position: "center",
+        style: {
+          background: "linear-gradient(to right, #00b09b, #96c93d)",
+        },
+      }).showToast();
+    }
+    getListAudio();
+    setIsOpenModalDelete(false);
+  };
+
+  useEffect(() => {
+    getListAudio();
+    console.log("option: ", option);
+    console.log("pathname: ", pathname);
+    // console.log("searchParams: ", searchParams);
+    // console.log("params: ", params);
+  }, []);
+
+  const getCategories = async () => {
+    try {
+      const res = await getAllCategoryApi();
+      console.log("resz", res);
+      setCategories(res?.data);
+    } catch (error) {
+      console.log("getListAudio error", error);
+    }
+  };
+
+  useEffect(() => {
+    getCategories();
+  }, []);
 
   return (
     <>
@@ -81,34 +172,36 @@ export default function Audio() {
                 </tr>
               </thead>
               <tbody>
-                {audio?.data?.map((product: any, key: any) => (
+                {audio?.items?.map((audio: any, key: any) => (
                   <tr key={key}>
                     <td className="border-b border-[#eee] px-4 py-5 pl-9 dark:border-strokedark xl:pl-11">
                       <h5 className="font-medium text-black dark:text-white">
-                        {product.name}
+                        {audio.name}
                       </h5>
                       {/* <p className="text-sm">${packageItem.price}</p> */}
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <p className="text-black dark:text-white">
-                        {product.category}
+                        {audio.categories
+                          .map((e: any) => (e || [])?.name)
+                          .join(", ")}
                       </p>
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <p className="text-black dark:text-white">
-                        {formatDate(product.createdAt)}
+                        {formatDate(audio.createdAt)}
                       </p>
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <p className="text-black dark:text-white">
-                        {formatDate(product.updatedAt)}
+                        {formatDate(audio.updatedAt)}
                       </p>
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <div className="flex items-center space-x-3.5">
                         <button
                           className="hover:text-primary"
-                          onClick={() => handleShowDetail(product)}
+                          onClick={() => handleShowDetail(audio)}
                         >
                           <svg
                             className="fill-current"
@@ -128,7 +221,13 @@ export default function Audio() {
                             />
                           </svg>
                         </button>
-                        <button className="hover:text-primary">
+                        <button
+                          onClick={() => {
+                            setAudioSelected(audio);
+                            setIsOpenModalDelete(true);
+                          }}
+                          className="hover:text-primary"
+                        >
                           <svg
                             className="fill-current"
                             width="18"
@@ -155,25 +254,6 @@ export default function Audio() {
                             />
                           </svg>
                         </button>
-                        <button className="hover:text-primary">
-                          <svg
-                            className="fill-current"
-                            width="18"
-                            height="18"
-                            viewBox="0 0 18 18"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path
-                              d="M16.8754 11.6719C16.5379 11.6719 16.2285 11.9531 16.2285 12.3187V14.8219C16.2285 15.075 16.0316 15.2719 15.7785 15.2719H2.22227C1.96914 15.2719 1.77227 15.075 1.77227 14.8219V12.3187C1.77227 11.9812 1.49102 11.6719 1.12539 11.6719C0.759766 11.6719 0.478516 11.9531 0.478516 12.3187V14.8219C0.478516 15.7781 1.23789 16.5375 2.19414 16.5375H15.7785C16.7348 16.5375 17.4941 15.7781 17.4941 14.8219V12.3187C17.5223 11.9531 17.2129 11.6719 16.8754 11.6719Z"
-                              fill=""
-                            />
-                            <path
-                              d="M8.55074 12.3469C8.66324 12.4594 8.83199 12.5156 9.00074 12.5156C9.16949 12.5156 9.31012 12.4594 9.45074 12.3469L13.4726 8.43752C13.7257 8.1844 13.7257 7.79065 13.5007 7.53752C13.2476 7.2844 12.8539 7.2844 12.6007 7.5094L9.64762 10.4063V2.1094C9.64762 1.7719 9.36637 1.46252 9.00074 1.46252C8.66324 1.46252 8.35387 1.74377 8.35387 2.1094V10.4063L5.40074 7.53752C5.14762 7.2844 4.75387 7.31252 4.50074 7.53752C4.24762 7.79065 4.27574 8.1844 4.50074 8.43752L8.55074 12.3469Z"
-                              fill=""
-                            />
-                          </svg>
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -181,34 +261,136 @@ export default function Audio() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            total={Math.ceil(audio?.totalItems / 10 || 1)}
+            currentPage={option?.page}
+            setCurrentPage={handleChangePage}
+          />
         </div>
       </AuthLayout>
       <Modal
+        isOpen={isOpenModalDetail}
+        onClose={() => setIsOpenModalDetail(false)}
+        title={"Audio Detail"}
+      >
+        <div className="rounded-sm border border-stroke bg-white dark:border-strokedark dark:bg-boxdark">
+          <div className="flex flex-col gap-5.5 p-6.5">
+            <div>
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Name
+              </label>
+              <input
+                type="text"
+                disabled
+                placeholder="Default Input"
+                value={audioSelected?.name}
+                className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Categories
+              </label>
+              <input
+                type="text"
+                disabled
+                placeholder="Active Input"
+                value={audioSelected?.categories
+                  .map((e: any) => (e || [])?.name)
+                  .join(", ")}
+                className="w-full rounded-lg border-[1.5px] border-primary bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:bg-form-input dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Free
+              </label>
+              <input
+                type="text"
+                disabled
+                placeholder="Default Input"
+                value={audioSelected?.isFree}
+                className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Parts
+              </label>
+              <input
+                type="text"
+                disabled
+                placeholder="Default Input"
+                value={audioSelected?.audioParts?.length || 0}
+                className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Image
+              </label>
+              <img src={audioSelected?.image} width="120" height="120" />
+            </div>
+          </div>
+        </div>
+      </Modal>
+      <Modal
         isOpen={isOpenModal == TYPE_MODAL.CREATE}
         onClose={() => setIsOpenModal("")}
-        title={"Create Product"}
+        title={"Create Audio"}
       >
-        <FormCreateProduct />
+        <FormCreateAudio
+          onHandleSuccess={() => {
+            setIsOpenModal(TYPE_MODAL.CLOSE);
+            getListAudio();
+          }}
+          categories={categories}
+        />
+      </Modal>
+      <Modal
+        isOpen={isOpenModalDelete}
+        onClose={() => setIsOpenModalDelete(false)}
+        title={"Confirm delete"}
+      >
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={() => handleDelete()}
+            className="inline-flex w-24 items-center justify-center gap-2.5 rounded-md bg-primary px-10 py-4 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+          >
+            OK
+          </button>
+          <button
+            onClick={() => setIsOpenModalDelete(false)}
+            className="bg-red-500 inline-flex w-24 items-center justify-center gap-2.5 rounded-md bg-meta-3 px-10 py-4 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+          >
+            Cancel
+          </button>
+        </div>
       </Modal>
     </>
   );
 }
 
-const FormCreateProduct = ({ onHandleSuccess }: any) => {
-  const option_cate = [
-    {
-      label: "Laptop",
-      value: "9c875cd2-6378-4ab7-b1d9-8d0008060d8c",
-    },
-    {
-      label: "Keyboard",
-      value: "927ce601-8b7d-40ac-9974-9aca457f673b",
-    },
-  ];
-
+const FormCreateAudio = ({ onHandleSuccess, categories }: any) => {
   const onSubmit = async () => {
     try {
-      console.log(values);
+      const result = await createAudioApi({
+        ...values,
+        categories: values?.categoryIds.map((e: any) => e.value),
+      });
+      if (result?.statusCode === 200) {
+        Toastify({
+          text: "Create successfully",
+          className: "info",
+          close: true,
+          gravity: "bottom",
+          position: "center",
+          style: {
+            background: "linear-gradient(to right, #00b09b, #96c93d)",
+          },
+        }).showToast();
+        onHandleSuccess();
+      }
     } catch (error) {
       console.log("handleLogin: ", error);
     }
@@ -227,12 +409,10 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
       name: "",
       description: "",
       categoryIds: [],
-      images: [],
-      priceTags: [],
+      images: "",
     },
     onSubmit,
     enableReinitialize: true,
-    // validationSchema: SignInSchema,
   });
 
   return (
@@ -243,7 +423,7 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
             <div className="mb-4.5 flex flex-col gap-6 xl:flex-row">
               <div className="w-full xl:w-1/2">
                 <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                  Product Name
+                  Audio Name <span className="text-meta-1">*</span>
                 </label>
                 <input
                   value={values.name}
@@ -258,9 +438,13 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
 
               <div className="w-full xl:w-1/2">
                 <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                  Product Description
+                  Audio Description
                 </label>
                 <input
+                  name="description"
+                  value={values.description}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
                   type="text"
                   placeholder="Enter your last name"
                   className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
@@ -276,10 +460,9 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
                 name="categoryIds"
                 isClearable
                 isMulti
-                options={option_cate}
+                options={categories?.items || []}
                 value={values.categoryIds}
                 onChange={(selectedOption: any) => {
-                  console.log(selectedOption);
                   handleChange({
                     target: { name: "categoryIds", value: selectedOption },
                   });
@@ -293,53 +476,10 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
                 onBlur={handleBlur}
               />
             </div>
-            <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-              Price
-            </label>
-            <div className="flex flex-col gap-3">
-              <div className="mb-4.5 flex flex-col gap-2 xl:flex-row">
-                <div className="w-full xl:w-1/2">
-                  <input
-                    type="text"
-                    placeholder="Enter name price tag"
-                    className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                  />
-                </div>
-                <div className="w-full xl:w-1/2">
-                  <input
-                    type="number"
-                    placeholder="Enter price"
-                    className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-4.5">
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Subject
-              </label>
-              <input
-                type="text"
-                placeholder="Select subject"
-                className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-              />
-            </div>
-
-            <div className="mb-6">
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Message
-              </label>
-              <textarea
-                rows={6}
-                placeholder="Type your message"
-                className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-              ></textarea>
-            </div>
           </div>
         </div>
         <button className="mt-5 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90">
-          Send Message
+          Submit
         </button>
       </form>
     </div>

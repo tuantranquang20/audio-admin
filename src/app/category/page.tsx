@@ -6,7 +6,10 @@ import Modal from "@/components/Modal/Modal";
 import useSearchParamsCus from "@/hooks/useSearchParamsCus";
 import { useFormik } from "formik";
 import { usePathname, useRouter } from "next/navigation";
-import Select, { StylesConfig } from "react-select";
+import { createCategoryApi, getCategoryApi } from "@/services/category.service";
+import { useDebounce } from "@/hooks/useDebounce";
+import TablePagination from "@/components/TablePagination/TablePagination";
+import Toastify from "toastify-js";
 
 const TYPE_MODAL = {
   CREATE: "create",
@@ -15,11 +18,46 @@ const TYPE_MODAL = {
 };
 
 export default function Category() {
+  const searchParamsCus: any = useSearchParamsCus();
+  const pathname = usePathname();
+  const { replace } = useRouter();
+
   const [category, setCategory] = useState<any>();
-  
-  const [userSelected, setUserSelected] = useState<any>();
+  const [categorySelected, setCategorySelected] = useState<any>();
+  const [option, setOption] = useState<any>(searchParamsCus.paramsObj);
 
   const [isOpenModal, setIsOpenModal] = useState(TYPE_MODAL.CLOSE);
+  const [isOpenModalDetail, setIsOpenModalDetail] = useState(false);
+
+  const getListCategory = async () => {
+    try {
+      const res = await getCategoryApi(option);
+      console.log(res);
+      setCategory(res?.data);
+      setOption({
+        ...option,
+        page: res?.page,
+      });
+    } catch (error) {
+      console.log("getListCategory error", error);
+    }
+  };
+
+  const handleSearch = useDebounce((term: string) => {
+    const params = new URLSearchParams(searchParamsCus.searchParams);
+    if (option) {
+      for (let key in option) {
+        params.set(key, option[key]);
+      }
+    }
+    replace(`${pathname}?${params.toString()}`);
+    getListCategory();
+  }, 100);
+
+  const handleChangePage = (page: any) => {
+    setOption({ ...option, page });
+    handleSearch();
+  };
 
   const formatDate = (date: any) => {
     return new Date(date)
@@ -33,10 +71,18 @@ export default function Category() {
       .join(" ");
   };
 
-  const handleShowDetail = (user: any) => {
-    setUserSelected(user);
-    setIsOpenModal(TYPE_MODAL.CLOSE);
+  const handleShowDetail = (category: any) => {
+    setCategorySelected(category);
+    setIsOpenModalDetail(true);
   };
+
+  useEffect(() => {
+    getListCategory();
+    console.log("option: ", option);
+    console.log("pathname: ", pathname);
+    // console.log("searchParams: ", searchParams);
+    // console.log("params: ", params);
+  }, []);
 
   return (
     <>
@@ -80,29 +126,29 @@ export default function Category() {
                 </tr>
               </thead>
               <tbody>
-                {category?.data.map((product: any, key: any) => (
+                {category?.items?.map((category: any, key: any) => (
                   <tr key={key}>
                     <td className="border-b border-[#eee] px-4 py-5 pl-9 dark:border-strokedark xl:pl-11">
                       <h5 className="font-medium text-black dark:text-white">
-                        {product.name}
+                        {category.name}
                       </h5>
                       {/* <p className="text-sm">${packageItem.price}</p> */}
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <p className="text-black dark:text-white">
-                        {formatDate(product.createdAt)}
+                        {formatDate(category.createdAt)}
                       </p>
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <p className="text-black dark:text-white">
-                        {formatDate(product.updatedAt)}
+                        {formatDate(category.updatedAt)}
                       </p>
                     </td>
                     <td className="border-b border-[#eee] px-4 py-5 dark:border-strokedark">
                       <div className="flex items-center space-x-3.5">
                         <button
                           className="hover:text-primary"
-                          onClick={() => handleShowDetail(product)}
+                          onClick={() => handleShowDetail(category)}
                         >
                           <svg
                             className="fill-current"
@@ -175,59 +221,84 @@ export default function Category() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            total={Math.ceil(category?.totalItems / 10 || 1)}
+            currentPage={option?.page}
+            setCurrentPage={handleChangePage}
+          />
         </div>
       </AuthLayout>
+
+      <Modal
+        isOpen={isOpenModalDetail}
+        onClose={() => setIsOpenModalDetail(false)}
+        title={"Category Detail"}
+      >
+        <div className="rounded-sm border border-stroke bg-white dark:border-strokedark dark:bg-boxdark">
+          <div className="flex flex-col gap-5.5 p-6.5">
+            <div>
+              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Name
+              </label>
+              <input
+                type="text"
+                disabled
+                placeholder="Default Input"
+                value={categorySelected?.name}
+                className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       <Modal
         isOpen={isOpenModal == TYPE_MODAL.CREATE}
         onClose={() => setIsOpenModal("")}
-        title={"Create Product"}
+        title={"Create category"}
       >
-        <FormCreateProduct />
+        <FormCreateCategory
+          onHandleSuccess={() => {
+            setIsOpenModal(TYPE_MODAL.CLOSE);
+            getListCategory();
+          }}
+        />
       </Modal>
     </>
   );
 }
 
-const FormCreateProduct = ({ onHandleSuccess }: any) => {
-  const option_cate = [
-    {
-      label: "Laptop",
-      value: "9c875cd2-6378-4ab7-b1d9-8d0008060d8c",
-    },
-    {
-      label: "Keyboard",
-      value: "927ce601-8b7d-40ac-9974-9aca457f673b",
-    },
-  ];
-
+const FormCreateCategory = ({ onHandleSuccess }: any) => {
   const onSubmit = async () => {
     try {
-      console.log(values);
+      const result = await createCategoryApi(values);
+      if (result?.statusCode === 200) {
+        Toastify({
+          text: "Create successfully",
+          className: "info",
+          close: true,
+          gravity: "bottom",
+          position: "center",
+          style: {
+            background: "linear-gradient(to right, #00b09b, #96c93d)",
+          },
+        }).showToast();
+        onHandleSuccess();
+      }
     } catch (error) {
       console.log("handleLogin: ", error);
     }
   };
 
-  const {
-    handleSubmit,
-    errors,
-    values,
-    handleBlur,
-    handleChange,
-    dirty,
-    touched,
-  }: any = useFormik({
-    initialValues: {
-      name: "",
-      description: "",
-      categoryIds: [],
-      images: [],
-      priceTags: [],
-    },
-    onSubmit,
-    enableReinitialize: true,
-    // validationSchema: SignInSchema,
-  });
+  const { handleSubmit, errors, values, handleBlur, handleChange }: any =
+    useFormik({
+      initialValues: {
+        name: "",
+        description: "",
+      },
+      onSubmit,
+      enableReinitialize: true,
+    });
 
   return (
     <div>
@@ -237,7 +308,7 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
             <div className="mb-4.5 flex flex-col gap-6 xl:flex-row">
               <div className="w-full xl:w-1/2">
                 <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                  Product Name
+                  Category Name
                 </label>
                 <input
                   value={values.name}
@@ -252,7 +323,7 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
 
               <div className="w-full xl:w-1/2">
                 <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                  Product Description
+                  Category Description
                 </label>
                 <input
                   type="text"
@@ -261,79 +332,10 @@ const FormCreateProduct = ({ onHandleSuccess }: any) => {
                 />
               </div>
             </div>
-
-            <div className="mb-4.5">
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Categories <span className="text-meta-1">*</span>
-              </label>
-              <Select
-                name="categoryIds"
-                isClearable
-                isMulti
-                options={option_cate}
-                value={values.categoryIds}
-                onChange={(selectedOption: any) => {
-                  console.log(selectedOption);
-                  handleChange({
-                    target: { name: "categoryIds", value: selectedOption },
-                  });
-                }}
-                noOptionsMessage={() => "No options"}
-                classNames={{
-                  control: () =>
-                    "w-full rounded border-[1.5px] border-stroke bg-transparent px-3 py-1 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary",
-                  valueContainer: () => "",
-                }}
-                onBlur={handleBlur}
-              />
-            </div>
-            <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-              Price
-            </label>
-            <div className="flex flex-col gap-3">
-              <div className="mb-4.5 flex flex-col gap-2 xl:flex-row">
-                <div className="w-full xl:w-1/2">
-                  <input
-                    type="text"
-                    placeholder="Enter name price tag"
-                    className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                  />
-                </div>
-                <div className="w-full xl:w-1/2">
-                  <input
-                    type="number"
-                    placeholder="Enter price"
-                    className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-4.5">
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Subject
-              </label>
-              <input
-                type="text"
-                placeholder="Select subject"
-                className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-              />
-            </div>
-
-            <div className="mb-6">
-              <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Message
-              </label>
-              <textarea
-                rows={6}
-                placeholder="Type your message"
-                className="w-full rounded border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-              ></textarea>
-            </div>
           </div>
         </div>
         <button className="mt-5 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90">
-          Send Message
+          Submit
         </button>
       </form>
     </div>

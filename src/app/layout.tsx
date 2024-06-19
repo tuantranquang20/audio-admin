@@ -5,6 +5,7 @@ import "@/css/satoshi.css";
 import "@/css/style.css";
 import React, { useEffect, useState } from "react";
 import Loader from "@/components/common/Loader";
+import "toastify-js/src/toastify.css"
 
 export default function RootLayout({
   children,

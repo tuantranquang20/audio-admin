@@ -396,6 +396,23 @@ const FormCreateAudio = ({ onHandleSuccess, categories }: any) => {
     }
   };
 
+  const handleFile = (e: any) => {
+    let file = e.target.files;
+
+    for (let i = 0; i < file.length; i++) {
+      const fileType = file[i]["type"];
+      const validImageTypes = ["image/gif", "image/jpeg", "image/png"];
+      if (validImageTypes.includes(fileType)) {
+        setFieldValue("images", file[i]);
+      } else {
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setFieldValue("images", "");
+  };
+
   const {
     handleSubmit,
     errors,
@@ -404,6 +421,7 @@ const FormCreateAudio = ({ onHandleSuccess, categories }: any) => {
     handleChange,
     dirty,
     touched,
+    setFieldValue,
   }: any = useFormik({
     initialValues: {
       name: "",
@@ -476,6 +494,45 @@ const FormCreateAudio = ({ onHandleSuccess, categories }: any) => {
                 onBlur={handleBlur}
               />
             </div>
+
+            <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+                Images <span className="text-meta-1">*</span>
+              </label>
+
+            <div className="bg-gray-300 border-gray-400 relative h-32 w-full cursor-pointer items-center rounded-md border-2 border-dotted">
+              <input
+                type="file"
+                onChange={handleFile}
+                className="absolute z-10 h-full w-full bg-green-200 opacity-0"
+                name="files[]"
+              />
+              <div className="bg-gray-200 absolute top-0 z-1 flex h-full w-full items-center justify-center">
+                <div className="flex flex-col">
+                  <i className="mdi mdi-folder-open text-gray-400 text-center text-[30px]"></i>
+                  <span className="text-[12px]">{`Drag and Drop a file`}</span>
+                </div>
+              </div>
+            </div>
+            {values.images ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <div className="relative overflow-hidden">
+                  <i
+                    onClick={() => {
+                      removeImage();
+                    }}
+                    className="mdi mdi-close absolute right-1 cursor-pointer hover:text-white"
+                  ></i>
+                  <img
+                    className="h-20 w-20 rounded-md"
+                    src={
+                      typeof values.images === "string"
+                        ? values.images
+                        : URL.createObjectURL(values.images)
+                    }
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
         <button className="mt-5 flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90">
